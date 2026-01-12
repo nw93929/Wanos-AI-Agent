@@ -1,31 +1,70 @@
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
 from .state import AgentState
+from .prompts import *
 
-# Nodes: These would call the prompts and LLMs
-def plan_node(state: AgentState):
-    return {"plan": ["Check internal DB", "Search Web"], "iteration_count": 1}
+'''
+Defines the nodes and edges of the agent's workflow graph. Each node represents a step in the research process,
+utilizing the prompts defined in prompts.py. Each edge defines the flow of data and control between these steps. Implements the Plan-Execute-Review loop. 
+If the report quality is below a threshold, it loops back to the Researcher for further data gathering.
+'''
 
-def research_node(state: AgentState):
-    return {"research_notes": ["Found data point A..."]}
+def planner_node(state: AgentState):
+    '''
+    calls LLM with the Planner prompt to create a research plan.
+    '''
+    return {
+        "system": PLANNER_SYSTEM,
+        "input_keys": ["task"],
+        "output_keys": ["plan"]
+    }
 
-def grade_node(state: AgentState):
-    # Logic to check if report is good
-    return {"score": 75} 
+def researcher_node(state: AgentState):
+    '''
+    calls LLM with the Researcher prompt to gather data based on the current plan step.
+    '''
+    return {
+        "system": RESEARCHER_SYSTEM,
+        "input_keys": ["plan", "research_notes"],
+        "output_keys": ["research_notes"]
+    }
 
-# workflow orchestration
+def writer_node(state: AgentState):
+    '''
+    calls LLM with the Writer prompt to draft the report.
+    '''
+    return {
+        "system": WRITER_SYSTEM,
+        "input_keys": ["research_notes"],
+        "output_keys": ["report"]
+    }
+
+def grader_node(state: AgentState):
+    '''
+    calls LLM with the Grader prompt to evaluate the report quality.
+    '''
+    return {
+        "system": GRADER_SYSTEM,
+        "input_keys": ["report", "plan"],
+        "output_keys": ["score"]
+    }
+
+# graph definition
 workflow = StateGraph(AgentState)
-workflow.add_node("planner", plan_node)
-workflow.add_node("researcher", research_node)
-workflow.add_node("grader", grade_node)
+workflow.add_node("planner", planner_node)
+workflow.add_node("researcher", researcher_node)
+workflow.add_node("writer", writer_node)    
+workflow.add_node("grader", grader_node)
 
-workflow.set_entry_point("planner")
+workflow.add_edge(START, "planner")
 workflow.add_edge("planner", "researcher")
-workflow.add_edge("researcher", "grader")
+workflow.add_edge("researcher", "writer")
+workflow.add_edge("writer", "grader")
 
-# set standard of 80 for report quality
-workflow.add_conditional_edges(
-    "grader",
-    lambda x: "researcher" if x["score"] < 80 else END
-)
+def decide_to_end(state: AgentState):
+    '''
+    Decides whether to end the workflow or loop back to the Researcher based on the report score.
+    '''
+    return "researcher" if state["score"] < 85 else END
 
-executable_agent = workflow.compile()
+workflow.add_conditional_edges("grader", decide_to_end)
+app = workflow.compile()

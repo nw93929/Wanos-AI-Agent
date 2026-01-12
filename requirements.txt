@@ -1,0 +1,28 @@
+# Core AI and Orchestration
+langchain>=0.3.0
+langgraph>=0.2.0
+langchain-openai>=0.2.0
+langchain-anthropic>=0.1.0
+
+# Databases and Vector Stores
+psycopg2-binary>=2.9.9       # PostgreSQL driver
+pymongo[srv]>=4.8.0          # MongoDB Atlas client
+langchain-mongodb>=0.1.0     # MongoDB Vector Store integration
+
+# Validation and Data Schemas
+pydantic>=2.8.0
+pydantic-settings>=2.4.0
+
+# External Search Tools
+tavily-python>=0.3.0
+duckduckgo-search>=6.2.0
+
+# Automation and Workers
+apscheduler>=3.10.4
+celery>=5.4.0
+redis>=5.0.0
+
+# API and Deployment
+fastapi>=0.112.0
+uvicorn>=0.30.0
+python-dotenv>=1.0.1

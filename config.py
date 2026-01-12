@@ -1,9 +1,14 @@
 import os
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL")
+class Settings(BaseSettings):
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+    MONGO_URI: str = os.getenv("MONGO_URI")
+    POSTGRES_URI: str = os.getenv("POSTGRES_URI")
+    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY")
+    MAX_LOOPS: int = 3
 
-MAX_RESEARCH_LOOPS = 3
+settings = Settings()
