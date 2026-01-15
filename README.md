@@ -7,9 +7,9 @@ Autonomous financial research agent using LangGraph with a Plan-Execute-Review l
 This agent implements a self-correcting workflow optimized for financial stock research:
 
 ```
-┌─────────┐      ┌────────────┐      ┌────────┐      ┌────────┐
+┌─────────┐      ┌────────────┐       ┌────────┐       ┌────────┐
 │ PLANNER │─────▶│ RESEARCHER │─────▶│ WRITER │─────▶│ GRADER │
-└─────────┘      └────────────┘      └────────┘      └────────┘
+└─────────┘      └────────────┘       └────────┘       └────────┘
    GPT-4o         Pinecone RAG         GPT-4o          Phi-3
                         ▲                                  │
                         │         score < 85?              │
