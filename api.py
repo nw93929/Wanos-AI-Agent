@@ -1,15 +1,18 @@
 """
-FastAPI Endpoint for n8n Integration
-=====================================
+FastAPI Endpoint with Results Storage
+======================================
 
-This file provides a REST API endpoint that n8n (or other automation tools) can call
-to trigger research tasks asynchronously.
+This version stores research results so they can be retrieved via task_id.
+
+NEW: After submitting a task, you can poll for results:
+1. POST /research -> returns task_id
+2. GET /research/{task_id} -> returns status and result
 
 Usage from n8n:
-POST http://localhost:8000/research
-Body: {"ticker": "AAPL", "instructions": "Analyze Q4 2024 performance"}
-
-Response: {"status": "Task Queued", "ticker": "AAPL", "task_id": "uuid-here"}
+1. HTTP Request: POST /research
+2. Wait node: 30 seconds
+3. HTTP Request: GET /research/{{task_id}}
+4. Check if status == "completed", if not loop back to step 2
 """
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException
@@ -19,15 +22,19 @@ import asyncio
 from uuid import uuid4
 from datetime import datetime
 
-# Import the research function from main
+# Import research functions
 from main import run_research
+from services.results_store import get_results_store, TaskStatus
 
 # Initialize FastAPI app
 api_app = FastAPI(
-    title="AI Research Agent API",
-    description="Autonomous financial research agent with LangGraph",
-    version="1.0.0"
+    title="AI Research Agent API v2",
+    description="Autonomous financial research agent with result retrieval",
+    version="2.0.0"
 )
+
+# Get results store
+results_store = get_results_store()
 
 # ============================================================================
 # REQUEST/RESPONSE MODELS
@@ -46,26 +53,74 @@ class StockScreeningRequest(BaseModel):
     mode: Literal["screening"] = Field(default="screening")
     criteria: str = Field(
         default="Warren Buffett value investing",
-        description="Investment criteria to use (e.g., 'Warren Buffett value investing', 'high growth tech', 'dividend aristocrats')"
+        description="Investment criteria to use"
     )
-    max_stocks: int = Field(
-        default=10,
-        ge=1,
-        le=100,
-        description="Maximum number of stocks to analyze"
-    )
-    sectors: Optional[list[str]] = Field(
-        default=None,
-        description="Filter by sectors (e.g., ['Technology', 'Healthcare'])"
-    )
+    max_stocks: int = Field(default=10, ge=1, le=100)
+    sectors: Optional[list[str]] = None
 
 class ResearchResponse(BaseModel):
-    """Response model for queued research tasks"""
+    """Response when task is queued"""
     status: str
     task_id: str
     ticker: Optional[str] = None
     message: str
     queued_at: str
+    result_url: str  # Where to GET results
+
+class TaskResultResponse(BaseModel):
+    """Response when retrieving task results"""
+    task_id: str
+    status: str  # queued, running, completed, failed
+    result: Optional[str] = None  # The actual report (if completed)
+    error: Optional[str] = None  # Error message (if failed)
+    metadata: dict
+    created_at: str
+    updated_at: str
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+async def run_research_with_storage(task_id: str, query: str, metadata: dict):
+    """
+    Wrapper that runs research and stores the result.
+
+    This runs in the background and updates the task status:
+    1. Mark as "running"
+    2. Execute research
+    3. Store result (or error)
+    4. Mark as "completed" or "failed"
+    """
+    try:
+        # Update status to running
+        results_store.update_status(task_id, TaskStatus.RUNNING)
+
+        # Run the actual research (blocking)
+        final_state = await run_research(query)
+
+        # Extract report from final state
+        report = final_state.get("report", "No report generated")
+
+        # Store successful result
+        results_store.store_result(
+            task_id=task_id,
+            status=TaskStatus.COMPLETED,
+            result=report,
+            metadata=metadata
+        )
+
+        print(f"[API] Task {task_id} completed successfully")
+
+    except Exception as e:
+        # Store error
+        results_store.store_result(
+            task_id=task_id,
+            status=TaskStatus.FAILED,
+            error=str(e),
+            metadata=metadata
+        )
+
+        print(f"[API] Task {task_id} failed: {e}")
 
 # ============================================================================
 # API ENDPOINTS
@@ -75,11 +130,14 @@ class ResearchResponse(BaseModel):
 async def root():
     """Health check endpoint"""
     return {
-        "service": "AI Research Agent API",
+        "service": "AI Research Agent API v2",
         "status": "running",
+        "features": ["result_storage", "task_polling"],
         "endpoints": {
-            "single_stock": "POST /research",
-            "screening": "POST /research/screen",
+            "submit_single": "POST /research",
+            "submit_screening": "POST /research/screen",
+            "get_results": "GET /research/{task_id}",
+            "list_tasks": "GET /research",
             "health": "GET /health"
         }
     }
@@ -92,8 +150,8 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "services": {
             "langraph": "available",
-            "pinecone": "connected",
-            "gpt4": "available"
+            "results_store": "available",
+            "pinecone": "connected"
         }
     }
 
@@ -105,23 +163,35 @@ async def trigger_single_stock_research(
     """
     Trigger research for a single stock.
 
-    The task runs in the background, so this endpoint returns immediately.
-    n8n receives confirmation that the task is queued.
-
-    Future enhancement: Add task_id tracking to poll for results.
+    Returns task_id immediately. Use GET /research/{task_id} to retrieve results.
     """
-    query = f"{request.instructions} for {request.ticker}"
     task_id = str(uuid4())
+    query = f"{request.instructions} for {request.ticker}"
 
-    # Add task to background (non-blocking)
-    background_tasks.add_task(run_research, query)
+    # Store initial task status
+    metadata = {
+        "ticker": request.ticker,
+        "instructions": request.instructions,
+        "type": "single_stock",
+        "created_at": datetime.now().isoformat()
+    }
+
+    results_store.store_result(
+        task_id=task_id,
+        status=TaskStatus.QUEUED,
+        metadata=metadata
+    )
+
+    # Add task to background
+    background_tasks.add_task(run_research_with_storage, task_id, query, metadata)
 
     return ResearchResponse(
         status="queued",
         task_id=task_id,
         ticker=request.ticker,
         message=f"Research task queued for {request.ticker}",
-        queued_at=datetime.now().isoformat()
+        queued_at=datetime.now().isoformat(),
+        result_url=f"/research/{task_id}"
     )
 
 @api_app.post("/research/screen", response_model=ResearchResponse)
@@ -130,41 +200,71 @@ async def trigger_stock_screening(
     background_tasks: BackgroundTasks
 ):
     """
-    Trigger batch screening of multiple stocks based on investment criteria.
+    Trigger batch screening of multiple stocks.
 
-    This endpoint will be used for the new screening workflow.
+    Returns task_id immediately. Poll GET /research/{task_id} for results.
     """
     task_id = str(uuid4())
 
-    # Build query for screening mode
     query = f"Screen stocks using {request.criteria} criteria. "
     if request.sectors:
         query += f"Focus on sectors: {', '.join(request.sectors)}. "
     query += f"Return top {request.max_stocks} recommendations."
 
-    # TODO: Implement batch screening workflow
-    # For now, this is a placeholder
-    background_tasks.add_task(run_research, query)
+    metadata = {
+        "criteria": request.criteria,
+        "max_stocks": request.max_stocks,
+        "sectors": request.sectors,
+        "type": "screening",
+        "created_at": datetime.now().isoformat()
+    }
+
+    results_store.store_result(
+        task_id=task_id,
+        status=TaskStatus.QUEUED,
+        metadata=metadata
+    )
+
+    background_tasks.add_task(run_research_with_storage, task_id, query, metadata)
 
     return ResearchResponse(
         status="queued",
         task_id=task_id,
         ticker=None,
-        message=f"Stock screening task queued with {request.criteria} criteria",
-        queued_at=datetime.now().isoformat()
+        message=f"Stock screening queued with {request.criteria} criteria",
+        queued_at=datetime.now().isoformat(),
+        result_url=f"/research/{task_id}"
     )
 
-# ============================================================================
-# FUTURE ENDPOINTS (for result retrieval)
-# ============================================================================
+@api_app.get("/research/{task_id}", response_model=TaskResultResponse)
+async def get_research_results(task_id: str):
+    """
+    Retrieve results of a research task.
 
-# @api_app.get("/research/{task_id}")
-# async def get_research_results(task_id: str):
-#     """
-#     Retrieve results of a completed research task.
-#     Requires implementing a result storage mechanism (Redis/DB).
-#     """
-#     pass
+    Status codes:
+    - "queued": Task is waiting to start
+    - "running": Task is currently executing
+    - "completed": Task finished successfully, result available
+    - "failed": Task failed, error message available
+
+    Poll this endpoint until status is "completed" or "failed".
+    """
+    result = results_store.get_result(task_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+    return TaskResultResponse(**result)
+
+@api_app.get("/research", response_model=list[TaskResultResponse])
+async def list_recent_tasks(limit: int = 10):
+    """
+    List recent research tasks.
+
+    Useful for debugging or building a dashboard.
+    """
+    tasks = results_store.list_recent_tasks(limit=limit)
+    return [TaskResultResponse(**task) for task in tasks]
 
 # ============================================================================
 # RUN SERVER
@@ -174,11 +274,15 @@ if __name__ == "__main__":
     import uvicorn
 
     print("=" * 60)
-    print("Starting AI Research Agent API Server")
+    print("Starting AI Research Agent API Server v2")
     print("=" * 60)
-    print("📊 Single Stock Analysis: POST /research")
-    print("🔍 Stock Screening: POST /research/screen")
+    print("📊 Submit Research: POST /research")
+    print("🔍 Submit Screening: POST /research/screen")
+    print("📥 Get Results: GET /research/{task_id}")
+    print("📋 List Tasks: GET /research")
     print("💚 Health Check: GET /health")
+    print("=" * 60)
+    print("\nNEW: Results are now stored and retrievable!")
     print("=" * 60)
 
     uvicorn.run(

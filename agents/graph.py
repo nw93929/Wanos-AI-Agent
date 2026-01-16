@@ -50,11 +50,16 @@ The quantization technique used here (BitsAndBytes NF4):
 """
 
 import re
+import os
 import torch
+from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline, BitsAndBytesConfig
 from langchain_huggingface import HuggingFacePipeline
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
+
+# Load environment variables FIRST (before any API calls)
+load_dotenv()
 
 # Import project modules
 from agents.state import AgentState
@@ -62,12 +67,37 @@ from agents.prompts import PLANNER_SYSTEM, WRITER_SYSTEM, GRADER_SYSTEM
 from services.pinecone_llamaindex import query_pinecone_llamaindex
 
 # ============================================================================
-# GLOBAL MODELS INITIALIZATION
+# GLOBAL MODELS INITIALIZATION (Lazy Loading Pattern)
 # ============================================================================
+# Both models are lazy-loaded to:
+# 1. Ensure .env is loaded before API key access
+# 2. Faster startup time
+# 3. Avoid memory usage if not needed
 
-# Senior Reasoning Model: GPT-4o for complex planning and writing
-# Why GPT-4o? Excellent at structured thinking, financial analysis, and long-form writing
-model = ChatOpenAI(model="gpt-4o", temperature=0)
+_reasoning_model = None  # Global cache for GPT-4o
+
+def get_reasoning_model():
+    """
+    Lazy-loads GPT-4o model for planning and writing.
+
+    Returns:
+        ChatOpenAI: LangChain wrapper for GPT-4o
+    """
+    global _reasoning_model
+
+    if _reasoning_model is None:
+        # Verify API key is present
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "OPENAI_API_KEY not found in environment variables. "
+                "Please set it in your .env file or export it."
+            )
+
+        _reasoning_model = ChatOpenAI(model="gpt-5-nano", temperature=0)
+        print("[INFO] GPT-5-nano model initialized successfully")
+
+    return _reasoning_model
 
 # ============================================================================
 # LOCAL EVALUATION MODEL (Lazy Loading Pattern)
@@ -169,6 +199,8 @@ def planner_node(state: AgentState) -> dict:
     """
     new_count = state.get("loop_count", 0) + 1
 
+    model = get_reasoning_model()  # Lazy load
+
     response = model.invoke([
         {"role": "system", "content": PLANNER_SYSTEM},
         {"role": "user", "content": state["task"]}
@@ -232,6 +264,8 @@ def writer_node(state: AgentState) -> dict:
     """
     # Combine all research notes into single context string
     full_context = "\n".join(state["research_notes"])
+
+    model = get_reasoning_model()  # Lazy load
 
     response = model.invoke([
         {"role": "system", "content": WRITER_SYSTEM},

@@ -1,3 +1,40 @@
-ai_agent/
-.env
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+ai_agent/
+venv/
+env/
+ENV/
+
+# Environment variables (NEVER commit!)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.log
+*.sqlite
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Data files (may contain sensitive info)
+data/processed/
+data/raw/
+*.csv
+*.json
+*.pkl

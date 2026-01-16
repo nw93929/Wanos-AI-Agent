@@ -27,3 +27,4 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic-settings>=2.7.0
 python-dotenv>=1.0.1
+requests>=2.31.0  # For external API calls (FMP, SEC EDGAR)
