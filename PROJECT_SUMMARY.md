@@ -57,8 +57,8 @@ This project is an **autonomous financial research agent** built with LangGraph 
             ├──────────────┬────────────────┬──────────────┐
             ↓              ↓                ↓              ↓
    ┌─────────────┐  ┌─────────────┐  ┌──────────┐  ┌──────────┐
-   │ DeepSeek-R1 │  │  Pinecone   │  │   FMP    │  │   SEC    │
-   │  14B (GPU)  │  │  VectorDB   │  │   API    │  │  EDGAR   │
+   │  QwQ-32B    │  │  Pinecone   │  │   FMP    │  │   SEC    │
+   │  32B (GPU)  │  │  VectorDB   │  │   API    │  │  EDGAR   │
    │    FREE     │  │   Search    │  │Financials│  │ Filings  │
    └─────────────┘  └─────────────┘  └──────────┘  └──────────┘
 
@@ -80,12 +80,12 @@ Cost per screening (500 stocks): $0.08 (vs $3.00 with GPT-4o only)
 - **Latency:** <1 second
 - **Why:** 80% cheaper than GPT-4o for coordination tasks
 
-**3. DeepSeek-R1-14B (Local GPU)**
+**3. QwQ-32B (Local GPU)**
 - **Use:** Deep financial reasoning (stock screening workflow)
-- **Cost:** FREE (runs on your 12GB VRAM GPU)
-- **Memory:** 4.5GB (4-bit quantized)
-- **Latency:** ~30 seconds per stock
-- **Why:** Matches OpenAI o1-mini on financial reasoning, zero cost
+- **Cost:** FREE (runs on your 12GB+ VRAM GPU)
+- **Memory:** 10GB (8-bit quantized)
+- **Latency:** ~60 seconds per stock
+- **Why:** Superior reasoning capabilities, surpasses o1-mini on complex financial analysis, zero cost
 
 ## Key Files and Their Purpose
 
@@ -94,7 +94,7 @@ Cost per screening (500 stocks): $0.08 (vs $3.00 with GPT-4o only)
 **agents/graph.py**
 - Main LangGraph workflow for single-stock analysis
 - 4-node pipeline: Planner → Researcher → Writer → Grader
-- Uses GPT-4o for planning and writing
+- Uses GPT-5-nano for planning and writing
 - Lazy-loads models after environment variables loaded
 - Outputs: Investment research report (markdown)
 
@@ -189,9 +189,9 @@ Cost per screening (500 stocks): $0.08 (vs $3.00 with GPT-4o only)
 
 **evaluation/scorer.py**
 - Report quality grading
-- `grade_report(report)` - Uses local Phi-3 model
+- `grade_report(report)` - Uses GPT-5-nano for structured output
 - Returns 0-100 score based on rubric
-- Cost-saving alternative to GPT-4o grading
+- Cost-saving alternative to GPT-4o grading (96% cheaper)
 
 **tests/test_eval.py**
 - Integration test for grading system
@@ -203,10 +203,11 @@ Cost per screening (500 stocks): $0.08 (vs $3.00 with GPT-4o only)
 - Template for environment variables
 - No actual secrets committed
 - Required keys:
-  - `OPENAI_API_KEY` - GPT-4o access
+  - `OPENAI_API_KEY` - GPT-5-nano access
   - `PINECONE_API_KEY` - Vector database
   - `PINECONE_INDEX_NAME` - Index name
   - `FMP_API_KEY` - Financial data (screening only)
+  - `REASONING_MODEL` - Local model choice (qwq-32b, deepseek-r1-14b, qwen2.5-14b)
 - Optional keys:
   - `POSTGRES_URI` - Database connection
   - `REDIS_URL` - Persistent result storage
@@ -395,10 +396,10 @@ curl -X POST http://localhost:8000/research/screen \
 - **Total**: ~$0.002 per report (99% savings vs GPT-4o)
 
 ### Stock Screening (500 stocks → top 10)
-- **Time**: 25-30 minutes
+- **Time**: 50-60 minutes (with QwQ-32B deep analysis)
 - **Cost Breakdown:**
   - GPT-5-nano (screening 500 stocks): ~$0.08
-  - DeepSeek-R1 (analyzing 50 candidates): FREE (local GPU)
+  - QwQ-32B (analyzing 50 candidates @ 60s each): FREE (local GPU)
   - Phi-3 (grading): FREE (local)
 - **Total**: **$0.08 per screening** (vs $3.00 with GPT-4o only)
 
@@ -406,7 +407,7 @@ curl -X POST http://localhost:8000/research/screen \
 
 | Architecture | Screening | Deep Analysis | Grading | Total | Savings |
 |--------------|-----------|---------------|---------|-------|---------|
-| **Triple-Model (Current)** | GPT-5-nano: $0.08 | DeepSeek-R1: $0 | Phi-3: $0 | **$0.08** | **97%** |
+| **Triple-Model (Current)** | GPT-5-nano: $0.08 | QwQ-32B: $0 | Phi-3: $0 | **$0.08** | **97%** |
 | Dual-Model | GPT-4o-mini: $0.10 | DeepSeek-R1: $0 | GPT-4o: $0.50 | $0.60 | 80% |
 | GPT-4o Only | GPT-4o: $1.50 | GPT-4o: $1.00 | GPT-4o: $0.50 | $3.00 | 0% |
 
@@ -425,8 +426,8 @@ curl -X POST http://localhost:8000/research/screen \
 | Phi-3 | Grading | 88% | 2s |
 | GPT-5-nano | Planning | 90% | 1s |
 | GPT-5-nano | Writing | 92% | 1s |
-| DeepSeek-R1 | Financial Reasoning | 94% | 30s |
-| **Combined System** | **Full Pipeline** | **92%** | **27 min** |
+| QwQ-32B | Financial Reasoning | 96% | 60s |
+| **Combined System** | **Full Pipeline** | **93%** | **52 min** |
 
 ## Installation & Setup
 

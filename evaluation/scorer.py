@@ -10,5 +10,5 @@ class Audit(BaseModel):
     critique: str = Field(description="Feedback for the writer")
 
 def grade_report(report: str):
-    llm = ChatOpenAI(model="gpt-4o").with_structured_output(Audit)
+    llm = ChatOpenAI(model="gpt-5-nano").with_structured_output(Audit)
     return llm.invoke(f"Audit this report: {report}")

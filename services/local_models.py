@@ -5,13 +5,12 @@ Local Model Management
 Manages local reasoning models for in-depth financial analysis.
 
 Two-tier architecture:
-- Tier 1 (Screening): GPT-4o-mini or GPT-5-nano for quick filtering
+- Tier 1 (Screening): GPT-5-nano for quick filtering
 - Tier 2 (Deep Analysis): Local reasoning model for final investment decisions
 
 Supported Models (12GB VRAM):
-- DeepSeek-R1-Distill-Qwen-14B (recommended)
-- QwQ-32B-Preview (better reasoning, slightly slower)
-- Qwen2.5-14B-Instruct (balanced)
+- DeepSeek-R1-Distill-Qwen-14B (recommended - best balance of speed and quality)
+- Qwen2.5-14B-Instruct (faster, good quality)
 """
 
 import os
@@ -19,8 +18,8 @@ import torch
 from typing import Optional, Literal
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-# Model selection
-ModelChoice = Literal["deepseek-r1-14b", "qwq-32b", "qwen2.5-14b"]
+# Model selection (QwQ-32B removed - requires 19GB+ VRAM with 4-bit, 33GB+ with 8-bit)
+ModelChoice = Literal["deepseek-r1-14b", "qwen2.5-14b"]
 
 # Global model cache
 _reasoning_model = None
@@ -52,31 +51,22 @@ def get_reasoning_model(
     # Model mappings
     model_paths = {
         "deepseek-r1-14b": "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
-        "qwq-32b": "Qwen/QwQ-32B-Preview",
         "qwen2.5-14b": "Qwen/Qwen2.5-14B-Instruct"
     }
 
     model_path = model_paths[model_choice]
 
     # 4-bit quantization config for 12GB VRAM
-    # DeepSeek-R1-14B: ~14GB FP16 → ~4GB with 4-bit
-    # QwQ-32B: ~64GB FP16 → ~18GB with 4-bit → needs 8-bit for 12GB
-    if model_choice == "qwq-32b":
-        # 8-bit quantization for 32B model
-        quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True,
-            llm_int8_enable_fp32_cpu_offload=False
-        )
-        print("[Local Model] Using 8-bit quantization (QwQ-32B)")
-    else:
-        # 4-bit quantization for 14B models (better quality/speed)
-        quantization_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4"
-        )
-        print("[Local Model] Using 4-bit NF4 quantization")
+    # DeepSeek-R1-14B: ~26GB FP16 → ~9GB with 4-bit (7GB weights + 2GB overhead)
+    # Qwen2.5-14B: ~28GB FP16 → ~8.4GB with 4-bit (7GB weights + 1.4GB overhead)
+    # Both fit comfortably in 12GB VRAM with headroom
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4"
+    )
+    print(f"[Local Model] Using 4-bit NF4 quantization (~9GB VRAM expected)")
 
     # Load tokenizer
     _reasoning_tokenizer = AutoTokenizer.from_pretrained(

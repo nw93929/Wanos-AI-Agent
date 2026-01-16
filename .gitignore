@@ -33,6 +33,12 @@ Thumbs.db
 htmlcov/
 WORKFLOW_GUIDE.md
 MODEL_GUIDE.md
+tests/test_accuracy.py
+tests/test_cost_analysis.py
+tests/test_performance.py
+tests/run_all_benchmarks.py
+EXAMPLE_METRICS.md
+demo.py
 
 # Data files (may contain sensitive info)
 data/processed/

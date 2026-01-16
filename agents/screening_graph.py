@@ -54,11 +54,11 @@ from services.market_data import (
 from services.local_models import generate_reasoning_response
 
 # Two-tier model system:
-# Tier 1: GPT-4o-mini for quick screening (cheap, fast)
-screening_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+# Tier 1: GPT-5-nano for quick screening (cheap, fast)
+screening_model = ChatOpenAI(model="gpt-5-nano", temperature=0)
 
 # Tier 2: Local reasoning model for deep analysis (configured in .env)
-# Options: "deepseek-r1-14b" (default), "qwq-32b", "qwen2.5-14b"
+# Options: "deepseek-r1-14b" (recommended), "qwen2.5-14b" (balanced)
 REASONING_MODEL = os.getenv("REASONING_MODEL", "deepseek-r1-14b")
 
 # ============================================================================

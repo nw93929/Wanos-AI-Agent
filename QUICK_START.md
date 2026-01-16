@@ -236,33 +236,34 @@ curl http://localhost:8000/health
                        v                v                v
                  ┌──────────┐    ┌──────────┐    ┌──────────┐
                  │  OpenAI  │    │ Pinecone │    │   SEC    │
-                 │  GPT-4o  │    │ Vector DB│    │  EDGAR   │
+                 │GPT-5-nano│    │ Vector DB│    │  EDGAR   │
                  └──────────┘    └──────────┘    └──────────┘
 ```
 
 ## Performance
 
 - **Single stock**: 30-60 seconds
-- **Screening 500 stocks**: 10-15 minutes
-- **Cold start** (first run): +15 seconds (loading Phi-3 model)
+- **Screening 500 stocks**: 50-60 minutes (with QwQ-32B deep analysis)
+- **Cold start** (first run): +30 seconds (loading Phi-3 + QwQ-32B models)
 
 ## Cost Estimates (per query)
 
 ### Single Stock Analysis
-- OpenAI API: ~$0.05 (3 GPT-4o calls)
+- OpenAI API: ~$0.002 (GPT-5-nano planning + writing)
 - Pinecone: Free tier sufficient
-- **Total**: $0.05
+- Local Phi-3: Free (grading)
+- **Total**: ~$0.002
 
-### Stock Screening (10 stocks)
-- OpenAI API: ~$0.50 (50+ GPT-4o calls)
+### Stock Screening (500 stocks → Top 10)
+- OpenAI API: ~$0.08 (GPT-5-nano screening)
 - FMP API: Free tier (250/day limit)
-- **Total**: $0.50
+- Local QwQ-32B: Free (deep analysis of top 50 stocks)
+- Local Phi-3: Free (grading)
+- **Total**: ~$0.08
 
-### Ways to Reduce Costs
-1. Use GPT-4o-mini instead of GPT-4o ($0.15/M tokens vs $5/M)
-2. Cache screening results daily
-3. Use local Phi-3 for all grading (saves ~40%)
-4. Batch LLM calls (score 5 stocks per prompt)
+### Cost Savings vs GPT-4o Only
+- Single stock: $0.05 → $0.002 (96% savings)
+- Stock screening: $3.00 → $0.08 (97% savings)
 
 ## Support
 

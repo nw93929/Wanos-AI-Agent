@@ -15,9 +15,10 @@ Cost-optimized architecture using three specialized models:
    - Use: Quick filtering, planning, portfolio construction
 
 3. **DeepSeek-R1-14B (Local)** - Deep financial reasoning
-   - Size: 14B parameters (4.5GB quantized)
-   - Cost: $0 (runs locally on GPU)
+   - Size: 14B parameters (~9GB VRAM with 4-bit quantization)
+   - Cost: $0 (runs locally on 12GB VRAM GPU)
    - Use: Investment analysis for stocks that pass screening
+   - Benchmarks: 93.9% MATH-500, 69.7% AIME 2024 (beats o1-mini)
 
 ## Cost Comparison (500 stocks screened)
 
@@ -31,12 +32,14 @@ Cost-optimized architecture using three specialized models:
 
 ## Quality Metrics
 
-| Model | Task | Accuracy | Speed |
-|-------|------|----------|-------|
-| Phi-3 | Grading | 88% | 2s/report |
-| GPT-5-nano | Screening | 90% | 1s/stock |
-| DeepSeek-R1 | Analysis | 94% | 30s/stock |
-| **Combined** | **Full Pipeline** | **92%** | **27 min total** |
+| Model | Task | Benchmark | Speed (Consumer GPU) |
+|-------|------|-----------|---------------------|
+| Phi-3 | Grading | 88% reliability | 2s/report |
+| GPT-5-nano | Screening | Good for filtering | <1s/stock (API) |
+| DeepSeek-R1 | Analysis | 93.9% MATH-500 | 20-40 tokens/sec* |
+| **Combined** | **Full Pipeline** | **Strong reasoning** | **~30-45 min total** |
+
+*Speed varies by hardware. RTX 3080/4070 Ti expected. Temperature set to 0.1 for reliability.
 """
 
 import os
@@ -61,11 +64,16 @@ class ModelConfig:
     SCREENING_TEMPERATURE = 0.0
     SCREENING_COST_PER_1M_TOKENS = 0.15  # Input tokens
 
-    # Tier 3: Deep Reasoning (DeepSeek-R1 local)
+    # Tier 3: Deep Reasoning (DeepSeek-R1-14B local)
     REASONING_MODEL = os.getenv("REASONING_MODEL", "deepseek-r1-14b")
-    REASONING_QUANTIZATION = "4bit"  # or "8bit" for QwQ-32B
-    REASONING_TEMPERATURE = 0.1
+    REASONING_QUANTIZATION = "4bit"  # 4-bit for 14B models
+    REASONING_TEMPERATURE = 0.1  # Low temperature for deterministic, reliable output
     REASONING_COST_PER_CALL = 0.0
+
+    # CRITICAL: DeepSeek-R1 excels at REASONING (93.9% MATH-500, 69.7% AIME),
+    # but has NO memorized financial knowledge. ALWAYS provide source data:
+    # ✓ Good: "Calculate EPS growth from this 10-K excerpt: [paste data]"
+    # ✗ Bad:  "What is Apple's current EPS?" (relies on knowledge cutoff)
 
     @staticmethod
     def get_model_for_task(task: ModelTier) -> dict:
