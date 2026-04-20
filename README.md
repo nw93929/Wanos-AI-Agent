@@ -9,6 +9,9 @@ DISCLAIMER: This project is an experimentation to satisfy my interests, it shoul
 This agent implements a self-correcting workflow optimized for financial stock research:
 
 ```
+
+
+
 ┌─────────┐      ┌────────────┐       ┌────────┐       ┌────────┐
 │ PLANNER │─────▶│ RESEARCHER │─────▶│ WRITER │─────▶│ GRADER │
 └─────────┘      └────────────┘       └────────┘       └────────┘
@@ -17,6 +20,9 @@ This agent implements a self-correcting workflow optimized for financial stock r
                         │         score < 85?              │
                         └──────────────────────────────────┘
                                 (loop back)
+
+
+
 ```
 
 ### Key Features:
